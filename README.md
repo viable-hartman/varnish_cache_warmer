@@ -44,3 +44,8 @@ fab -f cache_warmer.py cacheWarmer
 # Clean remote files to push changes
 fab -f cache_warmer.py clean | cleanWorker | cleanResultManager | cleanVentilator
 ```
+
+Basic Flow Diagram
+------------------
+![alt tag](https://raw.github.com/viable-hartman/varnish_cache_warmer/master/varnish_cache_warmer.png)
+
