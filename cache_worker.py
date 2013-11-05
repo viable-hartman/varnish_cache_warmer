@@ -14,7 +14,7 @@ AGENTS = ["MSIE", "Chrome", "Firefox", "Safari", "Opera"]
 # (URLs to be warmed) from the ventilator, warm those urls for all agents and
 # servers, and send the results down another zeromq PUSH connection to the
 # results manager.
-def worker(wrk_num, result_server, ventilator_server, port):
+def worker(wrk_num, result_server, ventilator_server, port, rm_ports):
     # Initialize a zeromq context
     context = zmq.Context()
 
@@ -24,11 +24,11 @@ def worker(wrk_num, result_server, ventilator_server, port):
 
     # Set up a channel to send result of work to the results reporter
     results_sender = context.socket(zmq.PUSH)
-    results_sender.connect("tcp://%s:5558" % (result_server))
+    results_sender.connect("tcp://%s:%d" % (result_server, rm_ports[0]))
 
     # Set up a channel to receive control messages over
     control_receiver = context.socket(zmq.SUB)
-    control_receiver.connect("tcp://%s:5559" % (result_server))
+    control_receiver.connect("tcp://%s:%d" % (result_server, rm_ports[1]))
     control_receiver.setsockopt(zmq.SUBSCRIBE, "")
 
     # Set up a poller to multiplex the work receiver and control receiver channels
@@ -51,7 +51,7 @@ def worker(wrk_num, result_server, ventilator_server, port):
                 try:
                     #response = urllib2.urlopen(req, timeout=10)
                     response = urllib2.urlopen(req)
-                    answer_message = {'worker': wrk_num, 'result': response.code, 'host': port, 'url': work_message['url']}  # Think about adding the URL here
+                    answer_message = {'worker': wrk_num, 'result': response.code, 'host': port, 'url': "%s - %s" % (user_agent, work_message['url'])}  # Think about adding the URL here
                 except urllib2.URLError as e:
                     answer_message = {'worker': wrk_num, 'result': e.message, 'host': port, 'url': work_message['url']}
                 except urllib2.HTTPError as he:
@@ -72,6 +72,7 @@ if __name__ == "__main__":
     parser.add_option('-r', '--result-server', action="store", type="string", dest="result_server", help="Enter the FQDN or IP of the result_server.")
     parser.add_option('-v', '--ventilator-server', action="store", type="string", dest="ventilator_server", help="Enter the FQDN or IP of the ventilator_server.")
     parser.add_option('-p', '--port', action="store", type="int", dest="port", default=6557, help="Port for ventilator push queue.")
+    parser.add_option('-c', '--rm-ports', action="store", type="string", dest="rm_ports", default="5558:5559", help="Result Manager ports for worker communication.")
     (options, args) = parser.parse_args()
 
     # Create a pool of workers to distribute work to
@@ -79,6 +80,7 @@ if __name__ == "__main__":
     result_server = options.result_server
     ventilator_server = options.ventilator_server
     port = options.port
+    rm_ports = map(int, options.rm_ports.split(':'))
 
     if not(result_server and ventilator_server):
         print(parser.usage)
@@ -86,4 +88,4 @@ if __name__ == "__main__":
 
     worker_pool = range(workers)
     for wrk_num in range(len(worker_pool)):
-        Process(target=worker, args=(wrk_num, result_server, ventilator_server, port)).start()
+        Process(target=worker, args=(wrk_num, result_server, ventilator_server, port, rm_ports)).start()

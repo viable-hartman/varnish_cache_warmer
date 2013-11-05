@@ -17,6 +17,8 @@ Configuration of Firewall
 
 In this setup IP Tables similar to the below would need to be configured (Of course this could be simplified, but this is a reasonable example):
 
+UPDATE: IP Tables should be automatic now.
+
 ```
 # On cache result_manger server for receiving results
 -A INPUT -s <worker 1 IP>/32 -p tcp -m tcp --dport 5558 -j ACCEPT

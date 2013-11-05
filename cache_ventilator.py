@@ -33,7 +33,7 @@ def message(elem):
 # The "ventilator" function parses the sitemap.xml file for urls, and
 # sends those urls down a zeromq "PUSH" connection to be processed by
 # listening workers, in a round robin load balanced fashion.
-def ventilator(sitemap_file, ventilator_server, bport, eport):
+def ventilator(sitemap_file, ventilator_server, bport, eport, v_rm_port):
     # Initialize a zeromq context
     context = zmq.Context()
 
@@ -47,7 +47,7 @@ def ventilator(sitemap_file, ventilator_server, bport, eport):
 
     # Set up a channel to send loc count to result_manager
     v_sender = context.socket(zmq.PUB)
-    v_sender.bind("tcp://%s:5560" % (ventilator_server))
+    v_sender.bind("tcp://%s:%d" % (ventilator_server, v_rm_port))
 
     # Give everything a second to spin up and connect
     time.sleep(1)
@@ -82,17 +82,19 @@ if __name__ == "__main__":
     parser.add_option('-v', '--ventilator-server', action="store", type="string", dest="ventilator_server", help="Server that queues the urls.")
     parser.add_option('-p', '--bport', action="store", type="int", dest="bport", default=6557, help="Beginning port for push queue.")
     parser.add_option('-n', '--num-servers', action="store", type="int", dest="num_servers", default=1, help="The number of worker servers that need a push queue port.")
+    parser.add_option('-c', '--v-rm-port', action="store", type="int", dest="v_rm_port", default=5560, help="Result Manager communication port.")
     (options, args) = parser.parse_args()
 
     sitemapxml = options.sitemapxml
     ventilator_server = options.ventilator_server
     bport = options.bport
     eport = bport + options.num_servers
+    v_rm_port = options.v_rm_port
 
     if not(sitemapxml and ventilator_server):
         print(parser.usage)
         sys.exit(1)
 
     # Start the ventilator!
-    ventilator = Process(target=ventilator, args=(sitemapxml, ventilator_server, bport, eport))
+    ventilator = Process(target=ventilator, args=(sitemapxml, ventilator_server, bport, eport, v_rm_port))
     ventilator.start()

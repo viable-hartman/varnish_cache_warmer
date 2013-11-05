@@ -11,22 +11,22 @@ from multiprocessing import Process
 # The "results_manager" function receives each result from multiple workers,
 # and prints those results.  When all results have been received, it signals
 # the worker processes to shut down.
-def result_manager(tm_between_msgs, wake_poll, result_server, ventilator_server):
+def result_manager(tm_between_msgs, wake_poll, result_server, ventilator_server, v_rm_port, rm_ports):
     # Initialize a zeromq context
     context = zmq.Context()
 
     # Set up a channel to receive results
     results_receiver = context.socket(zmq.PULL)
-    results_receiver.bind("tcp://%s:5558" % (result_server))
+    results_receiver.bind("tcp://%s:%d" % (result_server, rm_ports[0]))
 
     # Set up a channel to receive ventilator messages over
     v_receiver = context.socket(zmq.SUB)
-    v_receiver.connect("tcp://%s:5560" % (ventilator_server))
+    v_receiver.connect("tcp://%s:%d" % (ventilator_server, v_rm_port))
     v_receiver.setsockopt(zmq.SUBSCRIBE, "")
 
     # Set up a channel to send control commands
     control_sender = context.socket(zmq.PUB)
-    control_sender.bind("tcp://%s:5559" % (result_server))
+    control_sender.bind("tcp://%s:%d" % (result_server, rm_ports[1]))
 
     # Set up a poller to multiplex the results_receiver and v_receiver channels
     poller = zmq.Poller()
@@ -86,17 +86,21 @@ if __name__ == "__main__":
     parser.add_option('-w', '--wake-alarm', action="store", type="int", dest="wake_poll", default=30, help="An alarm to wake the result server in case of unmatching message counts.")
     parser.add_option('-r', '--result-server', action="store", type="string", dest="result_server", help="Server where the worker results are sent.")
     parser.add_option('-v', '--ventilator-server', action="store", type="string", dest="ventilator_server", help="Server that queues the urls.")
+    parser.add_option('-p', '--rm-ports', action="store", type="string", dest="rm_ports", default="5558:5559", help="Result Manager ports for worker communication.")
+    parser.add_option('-c', '--v_rm-port', action="store", type="int", dest="v_rm_port", default=5560, help="Result Manager communication port.")
     (options, args) = parser.parse_args()
 
     tm_between_msgs = options.tm_between_msgs
     wake_poll = options.wake_poll
     result_server = options.result_server
     ventilator_server = options.ventilator_server
+    rm_ports = map(int, options.rm_ports.split(':'))
+    v_rm_port = options.v_rm_port
 
     if not(result_server and ventilator_server):
         print(parser.usage)
         sys.exit(1)
 
     # Fire up our result manager...
-    result_manager = Process(target=result_manager, args=(tm_between_msgs, wake_poll, result_server, ventilator_server))
+    result_manager = Process(target=result_manager, args=(tm_between_msgs, wake_poll, result_server, ventilator_server, v_rm_port, rm_ports))
     result_manager.start()
